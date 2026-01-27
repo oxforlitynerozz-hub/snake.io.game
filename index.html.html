@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Mini Snake Avancé - IA</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+<style>
+body {
+    margin: 0;
+    height: 100vh;
+    background: #0f172a;
+    color: white;
+    font-family: 'Poppins', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+canvas {
+    background: #020617;
+    border: 3px solid #38bdf8;
+    border-radius: 12px;
+}
+.score { margin-top: 10px; font-size: 14px; }
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(2,6,23,.85);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    z-index: 10;
+}
+.menu {
+    background: #020617;
+    border: 2px solid #38bdf8;
+    border-radius: 12px;
+    padding: 20px;
+    min-width: 260px;
+    text-align: center;
+}
+.menu button, select, input {
+    width: 100%;
+    margin-top: 10px;
+    padding: 6px;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+
+/* ===== BARRE XP ===== */
+
+#xpContainer{
+    width: 400px;
+    height: 10px;
+    background:#020617;
+    border:1px solid #38bdf8;
+    border-radius:6px;
+    margin-top:6px;
+    overflow:hidden;
+}
+
+#xpBar{
+    height:100%;
+    width:0%;
+    background:#38bdf8;
+    transition:width .25s linear;
+}
+
+#objectiveText{
+    margin-top:6px;
+    font-size:13px;
+    color:#eab308;
+}
+
+#objectivePopup {
+    position: fixed;
+    top: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    background: #020617;
+    border: 2px solid #eab308;
+    color: #fde047;
+    padding: 12px 26px;
+    border-radius: 14px;
+    font-size: 15px;
+    font-weight: 600;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 9999;
+    transition: all .4s ease;
+    box-shadow: 0 0 25px #eab30855;
+}
+
+#objectivePopup.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* ===== HUD ===== */
+
+#hud {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 50;
+    font-family: "Poppins", sans-serif;
+}
+
+.hud-box {
+    width: 260px;
+    background: rgba(2,6,23,0.92);
+    border: 2px solid #38bdf8;
+    border-radius: 14px;
+    padding: 14px;
+    box-shadow: 0 0 25px #38bdf855;
+}
+
+.hud-title {
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: #7dd3fc;
+    font-size: 14px;
+}
+
+#hudObjectiveText {
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.hud-progress {
+    width: 100%;
+    height: 8px;
+    background: #020617;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+#hudProgressBar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg,#38bdf8,#22d3ee);
+    transition: width .3s ease;
+}
+
+</style>
+</head>
+<body>
+
+<h1>🐍 Mini Snake</h1>
+
+<canvas id="game" width="400" height="400"></canvas>
+
+<!-- ===== HUD ===== -->
+<div id="hud">
+    <div class="hud-box">
+        <div class="hud-title">🎯 Objectif</div>
+
+        <div id="hudObjectiveText">Objectif</div>
+
+        <div class="hud-progress">
+            <div id="hudProgressBar"></div>
+        </div>
+    </div>
+</div>
+
+<div class="score">
+    Score : <span id="score">0</span> |
+    Niveau : <span id="level">1</span> |
+    Record : <span id="high">0</span>
+</div>
+
+<!-- BARRE XP -->
+<div id="xpContainer">
+    <div id="xpBar"></div>
+</div>
+
+<div id="objectiveText"></div>
+
+
+
+<!-- MENU DE DÉPART -->
+<div class="overlay" id="startMenu" style="display:flex">
+    <div class="menu" id="step1">
+        <button onclick="goToName()">Jouer</button>
+    </div>
+    <div class="menu" id="step2" style="display:none">
+        <input type="text" id="usernameInput" placeholder="Nom d'utilisateur">
+        <select id="mapSelect">
+            <option value="1">MAP 1 - 400x400</option>
+            <option value="2">MAP 2 - 800x800</option>
+            <option value="3">MAP 3 - 1920x1080</option>
+        </select>
+        <button onclick="startGame()">OK</button>
+    </div>
+</div>
+
+<!-- GAME OVER -->
+<div class="overlay" id="gameOver">
+    <div class="menu">
+        <h2 id="gameOverText"></h2>
+        <p>Entrée pour rejouer</p>
+    </div>
+</div>
+
+<!-- PAUSE -->
+<div class="overlay" id="pauseMenu">
+    <div class="menu">
+        <h2>⏸️ Pause</h2>
+        <button onclick="togglePause()">▶️ Reprendre</button>
+        <button onclick="openSettings()">⚙️ Paramètres</button>
+        <button onclick="openColors()">🎨 Couleur serpent</button>
+        <button onclick="goToStartMenu()">🏠 Menu de départ</button>
+
+        <!-- DIV POUR LEADERBOARD -->
+        <div id="leaderboard" style="margin-top:10px; text-align:left;"></div>
+    </div>
+</div>
+
+<!-- SETTINGS -->
+<div class="overlay" id="settings">
+    <div class="menu">
+        <h3>Touches</h3>
+        <select id="controls">
+            <option value="arrows">Flèches</option>
+            <option value="wasd">WASD</option>
+            <option value="zqsd">ZQSD</option>
+        </select>
+        <button onclick="backToPause()">Retour</button>
+    </div>
+</div>
+
+<!-- COLORS -->
+<div class="overlay" id="colors">
+    <div class="menu">
+        <h3>Couleur du serpent</h3>
+        <input type="color" id="snakeColor" value="#38bdf8">
+        <button onclick="backToPause()">Retour</button>
+    </div>
+</div>
+
+<script>
+/* ===== MAPS CONFIG ===== */
+const MAPS_CONFIG = {
+    1:{w:400,h:400,foods:1},
+    2:{w:800,h:800,foods:2},
+    3:{w:1920,h:1080,foods:3}
+};
+
+/* ===== DOM ===== */
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const scoreEl = document.getElementById("score");
+const levelEl = document.getElementById("level");
+const highEl = document.getElementById("high");
+const gameOverEl = document.getElementById("gameOver");
+const gameOverText = document.getElementById("gameOverText");
+const startMenu = document.getElementById("startMenu");
+const step1 = document.getElementById("step1");
+const step2 = document.getElementById("step2");
+const usernameInput = document.getElementById("usernameInput");
+const pauseMenu = document.getElementById("pauseMenu");
+const settingsMenu = document.getElementById("settings");
+const colorsMenu = document.getElementById("colors");
+
+/* ===== VARIABLES ===== */
+const box = 20;
+const BASE_DELAY = 120;
+const MIN_DELAY = 35;
+let terrainWidth = 400;
+let terrainHeight = 400;
+let gridX = terrainWidth / box;
+let gridY = terrainHeight / box;
+
+let snake=[], prevSnake=[], obstacles=[];
+let foods=[];
+let goldenApple = null;
+let goldenAppleCounter = 0;
+let lastFrameTime = performance.now();
+let applesEatenTotal = 0;
+let objectiveStartTime = performance.now();
+
+let dir="RIGHT", nextDir="RIGHT";
+let score=0, level=1, delay=120, acc=0, lastTime=0;
+let paused=false, gameOver=false;
+let controlsMode="arrows";
+let snakeColor="#38bdf8";
+let highScore = localStorage.getItem("snakeHigh") || 0;
+let username = "Joueur";
+
+// ===== OBJECTIFS =====
+const OBJECTIVES = [
+    { text:"🍎 Mange 5 pommes", check:()=>applesEatenTotal>=5},
+    { text:"⏱️ Survis 30 secondes", check:()=>performance.now()-objectiveStartTime>=30000 },
+    { text:"⭐ Mange une pomme d'or", check:()=>goldenCollected }
+];
+
+let objectiveIndex = 0;
+let currentObjective = OBJECTIVES[0];
+let objectiveCompleted = false;
+let goldenCollected = false;
+let objectivesFinished = false;
+
+function nextObjective(){
+
+    objectiveIndex++;
+
+    goldenCollected = false;
+
+    // 🏁 PLUS D’OBJECTIFS
+    if (objectiveIndex >= OBJECTIVES.length){
+
+        objectivesFinished = true;
+
+        document.getElementById("objectiveText").textContent =
+            "🏆 Tous les objectifs terminés !";
+
+        document.getElementById("hudObjectiveText").textContent =
+            "🏆 Tous les objectifs terminés !";
+
+        document.getElementById("hudProgressBar").style.width = "100%";
+
+        return;
+    }
+
+    currentObjective = OBJECTIVES[objectiveIndex];
+    objectiveStartTime = performance.now();
+
+    document.getElementById("objectiveText").textContent =
+        "Objectif : " + currentObjective.text;
+
+    document.getElementById("hudObjectiveText").textContent =
+        currentObjective.text;
+
+    document.getElementById("hudProgressBar").style.width = "0%";
+}
+
+// ===== POUVOIRS =====
+let powerItem = null;
+let activePower = null;
+let powerEndTime = 0;
+
+let levelStartTime = performance.now();
+document.getElementById("objectiveText").textContent =
+    "Objectif : " + currentObjective.text;
+
+// ===== BARRE XP =====
+let applesEaten = 0;
+const applesPerLevel = 5;
+
+/* ===== IA ===== */
+let modeIA=false;
+let snakeIA=[], prevSnakeIA=[], foodIA=null;
+let dirIA="RIGHT";
+
+/* ===== INIT ===== */
+function init(){
+    objectiveIndex = 0;
+currentObjective = OBJECTIVES[0];
+objectiveCompleted = false;
+goldenCollected = false;
+applesEatenTotal = 0;
+
+document.getElementById("objectiveText").textContent =
+    "Objectif : " + currentObjective.text;
+
+    const mapId = document.getElementById("mapSelect").value;
+    const cfg = MAPS_CONFIG[mapId];
+
+    terrainWidth = cfg.w;
+    terrainHeight = cfg.h;
+
+    canvas.width = terrainWidth;
+    canvas.height = terrainHeight;
+    gridX = terrainWidth / box;
+    gridY = terrainHeight / box;
+
+    snake = [{x:terrainWidth/2, y:terrainHeight/2}];
+    prevSnake = [{...snake[0]}];
+    obstacles = [];
+    foods = [];
+
+    dir = nextDir = "RIGHT";
+    score=0; level=1; delay = BASE_DELAY; acc=0; lastTime=0;
+    paused=false; gameOver=false;
+
+    applesEaten = 0;
+document.getElementById("xpBar").style.width = "0%";
+
+
+    modeIA=false;
+    snakeIA=[]; prevSnakeIA=[]; foodIA=null; dirIA="RIGHT";
+
+goldenCollected = false;
+goldenApple = null;
+
+    goldenAppleCounter = 0;
+
+    for(let i=0;i<cfg.foods;i++) foods.push(spawnFood());
+    spawnObstacles();
+
+    scoreEl.textContent = score;
+    levelEl.textContent = level;
+    levelStartTime = performance.now();
+
+
+    highEl.textContent = highScore;
+    applesEaten = 0;
+document.getElementById("xpBar").style.width = "0%";
+    hideAll();
+document.getElementById("hudObjectiveText").textContent =
+    currentObjective.text;
+
+document.getElementById("hudProgressBar").style.width = "0%";
+}
+
+/* ===== FOOD ===== */
+function spawnFood(offsetX=0){
+    function spawnPower(){
+    return {
+        x: Math.floor(Math.random()*gridX)*box,
+        y: Math.floor(Math.random()*gridY)*box,
+        type: ["boost","slow","ghost"][Math.floor(Math.random()*3)]
+    };
+}
+
+    let p;
+    const foodTypes = [
+        {color:"#ef4444", score:1, speed:0},
+        {color:"#22c55e", score:3, speed:-10},
+        {color:"#eab308", score:1, speed:15}
+    ];
+    do{
+        const type = foodTypes[Math.floor(Math.random()*foodTypes.length)];
+        let x = Math.floor(Math.random()*(terrainWidth/box)) * box + offsetX;
+        let y = Math.floor(Math.random()*(terrainHeight/box)) * box;
+        p = {x, y, ...type};
+    } while(
+        snake.some(s=>s.x===p.x && s.y===p.y) ||
+        obstacles.some(o=>o.x===p.x && o.y===p.y) ||
+        foods.some(f=>f.x===p.x && f.y===p.y)
+    );
+    return p;
+}
+
+/* ===== GOLDEN APPLE ===== */
+function spawnGoldenApple(){
+    let x, y;
+    do{
+        x = Math.floor(Math.random()*(terrainWidth/box))*box;
+        y = Math.floor(Math.random()*(terrainHeight/box))*box;
+    } while(
+        snake.some(s=>s.x===x && s.y===y) ||
+        obstacles.some(o=>o.x===x && o.y===y) ||
+        foods.some(f=>f.x===x && f.y===y)
+    );
+goldenApple = {
+    x, y,                 // position grille
+    drawX: x,
+    drawY: y,             // position fluide
+vx: 2.5,
+vy: 0
+};
+
+}
+
+/* ===== OBSTACLES ===== */
+function spawnObstacles(){
+    obstacles=[];
+    for(let i=0;i<level-1;i++){
+        obstacles.push({
+            x:Math.floor(Math.random()*gridX)*box,
+            y:Math.floor(Math.random()*gridY)*box
+        });
+    }
+}
+
+/* ===== INPUT ===== */
+let secretCode=["2","0","1","2"];
+let codeIndex=0;
+
+document.addEventListener("keydown", e=>{
+    if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key)){
+        e.preventDefault();
+    }
+
+    if(e.key==="Enter" && gameOver){ init(); return; }
+    if(e.key===" "){ togglePause(); return; }
+    if(paused || gameOver) return;
+
+    if(e.key===secretCode[codeIndex]){
+        codeIndex++;
+        if(codeIndex===secretCode.length){ activateIA(); codeIndex=0; }
+    } else codeIndex=0;
+
+    if(e.key.toLowerCase()==="x" && modeIA){
+        modeIA=false;
+        snakeIA=[]; prevSnakeIA=[]; foodIA=null;
+        canvas.width=terrainWidth;
+    }
+
+    const maps = {
+        arrows:{ArrowLeft:"LEFT",ArrowUp:"UP",ArrowRight:"RIGHT",ArrowDown:"DOWN"},
+        wasd:{a:"LEFT",w:"UP",d:"RIGHT",s:"DOWN"},
+        zqsd:{q:"LEFT",z:"UP",d:"RIGHT",s:"DOWN"}
+    };
+    const map = maps[controlsMode];
+    if(map[e.key] && !isOpposite(map[e.key])) nextDir=map[e.key];
+});
+function isOpposite(d){
+    return (dir==="LEFT"&&d==="RIGHT")||(dir==="RIGHT"&&d==="LEFT")||
+           (dir==="UP"&&d==="DOWN")||(dir==="DOWN"&&d==="UP");
+}
+
+/* ===== IA ===== */
+function activateIA(){
+    modeIA=true;
+    canvas.width = terrainWidth*2;
+    gridX = canvas.width / box;
+    snakeIA = [{x:terrainWidth + 20, y:terrainHeight/2}];
+    prevSnakeIA = [{...snakeIA[0]}];
+    dirIA="RIGHT";
+    foodIA = spawnFood(terrainWidth);
+}
+
+/* ===== UPDATE ===== */
+function activatePower(type){
+    activePower = type;
+    powerEndTime = performance.now() + 5000;
+
+    if(type==="boost") delay *= 0.5;
+    if(type==="slow") delay *= 1.8;
+}
+
+function update(){
+    dir=nextDir;
+    let head={...snake[0]};
+    if(dir==="LEFT") head.x-=box;
+    if(dir==="RIGHT") head.x+=box;
+    if(dir==="UP") head.y-=box;
+    if(dir==="DOWN") head.y+=box;
+
+    head.x=(head.x + terrainWidth) % terrainWidth;
+    head.y=(head.y + terrainHeight) % terrainHeight;
+
+    if(
+        snake.some(s=>s.x===head.x && s.y===head.y) ||
+        obstacles.some(o=>o.x===head.x && o.y===head.y)
+    ){
+        gameOver=true;
+        gameOverText.textContent=`💀 ${username} - Score : ${score}`;
+        gameOverEl.style.display="flex";
+
+        saveScore(username, score);
+        return;
+    }
+
+    prevSnake = snake.map(s=>({...s}));
+    snake.unshift(head);
+
+    // ----- Foods classiques -----
+    const idx = foods.findIndex(f=>f.x===head.x && f.y===head.y);
+    if(idx !== -1){
+    applesEaten++;
+    applesEatenTotal++;
+
+const percent = (applesEaten / applesPerLevel) * 100;
+document.getElementById("xpBar").style.width = percent + "%";
+        const f = foods[idx];
+        score += f.score;
+        delay = Math.max(50, delay + f.speed);
+
+        foods.splice(idx,1);
+        foods.push(spawnFood());
+
+        goldenAppleCounter++;
+        if(goldenAppleCounter % 10 === 0) spawnGoldenApple();
+
+if(applesEaten >= applesPerLevel){
+    levelStartTime = performance.now();
+
+
+document.getElementById("objectiveText").textContent =
+    "Objectif : " + currentObjective.text;
+
+
+    level++;
+    spawnObstacles();
+
+    // accélération progressive
+    delay = Math.max(
+        MIN_DELAY,
+        delay * 1.00
+    );
+
+    applesEaten = 0;
+    document.getElementById("xpBar").style.width = "0%";
+
+    levelEl.textContent = level;
+}
+
+
+        if(score>highScore){
+            highScore=score;
+            localStorage.setItem("snakeHigh",highScore);
+            highEl.textContent=highScore;
+        }
+        scoreEl.textContent=score;
+    } else snake.pop();
+
+// ----- Golden Apple -----
+if(goldenApple){
+
+    // collision serpent
+    if(
+        head.x === goldenApple.x &&
+        head.y === goldenApple.y
+    ){
+        score += 5;
+
+        for(let i=0;i<5;i++){
+            const last = snake[snake.length - 1];
+            snake.push({ x:last.x, y:last.y });
+        }
+
+    goldenCollected = true;
+goldenApple = null;
+        scoreEl.textContent = score;
+    }
+}
+
+if(activePower && performance.now() > powerEndTime){
+    activePower = null;
+    delay = BASE_DELAY;
+}
+    
+// ===== OBJECTIF TERMINÉ =====
+if (!objectivesFinished &&
+    !objectiveCompleted &&
+    currentObjective.check()
+) {
+
+    objectiveCompleted = true;
+
+    showObjectiveNotification(currentObjective.text);
+
+    setTimeout(() => {
+        nextObjective();
+        objectiveCompleted = false;
+    }, 1500);
+}
+
+updateObjectiveProgress();
+if(modeIA) updateIA();
+
+}
+
+/* ===== UPDATE IA ===== */
+function updateIA(){
+    let head={...snakeIA[0]};
+    let localX = head.x - terrainWidth;
+    let localY = head.y;
+    let fx = foodIA.x - terrainWidth;
+    let fy = foodIA.y;
+
+    const directions = ["LEFT","RIGHT","UP","DOWN"];
+    let preferredDir = Math.abs(fx-localX) > Math.abs(fy-localY)
+        ? (fx>localX?"RIGHT":"LEFT")
+        : (fy>localY?"DOWN":"UP");
+
+    function isSafe(dir){
+        let nx=localX, ny=localY;
+        if(dir==="LEFT") nx-=box;
+        if(dir==="RIGHT") nx+=box;
+        if(dir==="UP") ny-=box;
+        if(dir==="DOWN") ny+=box;
+        nx+=terrainWidth;
+        return !snakeIA.some(s=>s.x===nx && s.y===ny);
+    }
+
+    if(isSafe(preferredDir)) dirIA = preferredDir;
+    else{
+        const safeDirs = directions.filter(d=>isSafe(d));
+        dirIA = safeDirs.length ? safeDirs[Math.floor(Math.random()*safeDirs.length)] : preferredDir;
+    }
+
+    if(dirIA==="LEFT") localX-=box;
+    if(dirIA==="RIGHT") localX+=box;
+    if(dirIA==="UP") localY-=box;
+    if(dirIA==="DOWN") localY+=box;
+
+    head.x = localX + terrainWidth;
+    head.y = localY;
+
+    prevSnakeIA = snakeIA.map(s=>({...s}));
+    snakeIA.unshift(head);
+
+    if(head.x===foodIA.x && head.y===foodIA.y) foodIA = spawnFood(terrainWidth);
+    else snakeIA.pop();
+}
+
+/* ===== DRAW ===== */
+function draw(alpha){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    if(modeIA){
+        ctx.strokeStyle="#38bdf8";
+        ctx.beginPath();
+        ctx.moveTo(terrainWidth,0);
+        ctx.lineTo(terrainWidth,terrainHeight);
+        ctx.stroke();
+    }
+
+foods.forEach(f=>{
+    const cx = f.x + box/2;
+    const cy = f.y + box/2;
+
+    const grad = ctx.createRadialGradient(
+        cx - 3, cy - 3, 2,
+        cx, cy, box/2
+    );
+    grad.addColorStop(0, "#ffffffaa");
+    grad.addColorStop(1, f.color);
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, box/2 - 2, 0, Math.PI * 2);
+    ctx.fill();
+});
+
+    if(goldenApple){
+const gx = goldenApple.drawX + box / 2;
+const gy = goldenApple.drawY + box / 2;
+
+const grad = ctx.createRadialGradient(
+    gx - 4, gy - 4, 3,
+    gx, gy, box/2
+);
+grad.addColorStop(0, "#fff7");
+grad.addColorStop(1, "#FFD700");
+
+ctx.fillStyle = grad;
+ctx.beginPath();
+ctx.arc(gx, gy, box/2 - 2, 0, Math.PI*2);
+ctx.fill();
+  }
+
+    ctx.fillStyle="#475569";
+    obstacles.forEach(o=>ctx.fillRect(o.x,o.y,box,box));
+
+    snake.forEach((p,i)=>{
+    const prev = prevSnake[i] || p;
+    const x = prev.x + (p.x - prev.x) * alpha;
+    const y = prev.y + (p.y - prev.y) * alpha;
+
+    // Corps arrondi
+    ctx.fillStyle = i === 0 ? snakeColor : snakeColor + "cc";
+    ctx.beginPath();
+    ctx.roundRect(x, y, box, box, 6);
+    ctx.fill();
+
+    // ===== YEUX =====
+    if(i === 0){
+        ctx.fillStyle = "#fff";
+
+        let ex1 = x + box * 0.25;
+        let ex2 = x + box * 0.75;
+        let ey  = y + box * 0.35;
+
+        if(dir === "LEFT"){ ex1 = ex2 = x + box * 0.3; }
+        if(dir === "RIGHT"){ ex1 = ex2 = x + box * 0.7; }
+        if(dir === "UP"){ ey = y + box * 0.3; }
+        if(dir === "DOWN"){ ey = y + box * 0.7; }
+
+        ctx.beginPath();
+        ctx.arc(ex1, ey, 3, 0, Math.PI*2);
+        ctx.arc(ex2, ey, 3, 0, Math.PI*2);
+        ctx.fill();
+
+        // Pupilles
+        ctx.fillStyle = "#000";
+        ctx.beginPath();
+        ctx.arc(ex1, ey, 1.4, 0, Math.PI*2);
+        ctx.arc(ex2, ey, 1.4, 0, Math.PI*2);
+        ctx.fill();
+    }
+
+// ===== NOM AU-DESSUS DE LA TÊTE =====
+if(i === 0){
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "12px Poppins";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.fillText(
+        username,
+        x + box / 2,
+        y - 4
+    );
+}
+
+});
+
+if(modeIA){
+
+    // nourriture IA
+    const cx = foodIA.x + box/2;
+    const cy = foodIA.y + box/2;
+
+    const grad = ctx.createRadialGradient(
+        cx - 3, cy - 3, 2,
+        cx, cy, box/2
+    );
+    grad.addColorStop(0, "#ffffffaa");
+    grad.addColorStop(1, foodIA.color);
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, box/2 - 2, 0, Math.PI*2);
+    ctx.fill();
+
+    // ===== SERPENT IA =====
+    snakeIA.forEach((p,i)=>{
+        const prev = prevSnakeIA[i] || p;
+        const x = prev.x + (p.x - prev.x) * alpha;
+        const y = prev.y + (p.y - prev.y) * alpha;
+
+        // corps arrondi
+        ctx.fillStyle = i === 0 ? "#ef4444" : "#f87171cc";
+        ctx.beginPath();
+        ctx.roundRect(x, y, box, box, 6);
+        ctx.fill();
+
+        // yeux IA
+        if(i === 0){
+            ctx.fillStyle = "#fff";
+
+            let ex1 = x + box * 0.25;
+            let ex2 = x + box * 0.75;
+            let ey  = y + box * 0.35;
+
+            if(dirIA === "LEFT"){ ex1 = ex2 = x + box * 0.3; }
+            if(dirIA === "RIGHT"){ ex1 = ex2 = x + box * 0.7; }
+            if(dirIA === "UP"){ ey = y + box * 0.3; }
+            if(dirIA === "DOWN"){ ey = y + box * 0.7; }
+
+            ctx.beginPath();
+            ctx.arc(ex1, ey, 3, 0, Math.PI*2);
+            ctx.arc(ex2, ey, 3, 0, Math.PI*2);
+            ctx.fill();
+
+            ctx.fillStyle = "#000";
+            ctx.beginPath();
+            ctx.arc(ex1, ey, 1.4, 0, Math.PI*2);
+            ctx.arc(ex2, ey, 1.4, 0, Math.PI*2);
+            ctx.fill();
+        }
+    });
+}
+
+    }
+
+function updateObjectiveProgress(){
+
+    // ⛔ STOP si tous les objectifs sont finis
+    if (objectivesFinished) return;
+
+    let percent = 0;
+
+    // 🍎 pommes
+    if(currentObjective.text.includes("pommes")){
+        percent = Math.min((applesEatenTotal / 5) * 100, 100);
+    }
+
+    // ⏱ survie
+    if(currentObjective.text.includes("Survis")){
+        percent = Math.min(
+            ((performance.now() - objectiveStartTime) / 30000) * 100,
+            100
+        );
+    }
+
+    // ⭐ pomme d'or
+    if(currentObjective.text.includes("or")){
+        percent = goldenCollected ? 100 : 0;
+    }
+
+    document.getElementById("hudProgressBar").style.width =
+        percent + "%";
+}
+
+function showObjectiveNotification(text){
+    const popup = document.getElementById("objectivePopup");
+    popup.textContent = "🎯 Objectif accompli : " + text;
+    popup.classList.add("show");
+
+    setTimeout(() => {
+        popup.classList.remove("show");
+    }, 2500);
+}
+
+/* ===== LOOP ===== */
+function loop(t){
+
+    // première frame
+    if (!lastTime) {
+        lastTime = t;
+        lastFrameTime = t;
+    }
+
+    const delta = t - lastTime;
+    const frameDelta = (t - lastFrameTime) / 16.67;
+
+    lastTime = t;
+    lastFrameTime = t;
+
+    // ===== POMME D’OR FLUIDE =====
+    if (goldenApple && !paused && !gameOver) {
+
+        goldenApple.drawX += goldenApple.vx * frameDelta;
+        goldenApple.drawY += goldenApple.vy * frameDelta;
+
+const radius = box / 2;
+
+// centre réel de la pomme
+const cx = goldenApple.drawX + radius;
+const cy = goldenApple.drawY + radius;
+
+// ===== rebond horizontal =====
+if (cx <= radius) {
+    goldenApple.drawX = 0;
+    goldenApple.vx = Math.abs(goldenApple.vx);
+}
+
+if (cx >= terrainWidth - radius) {
+    goldenApple.drawX = terrainWidth - box;
+    goldenApple.vx = -Math.abs(goldenApple.vx);
+}
+
+// ===== rebond vertical =====
+if (cy <= radius) {
+    goldenApple.drawY = 0;
+    goldenApple.vy = Math.abs(goldenApple.vy);
+}
+
+if (cy >= terrainHeight - radius) {
+    goldenApple.drawY = terrainHeight - box;
+    goldenApple.vy = -Math.abs(goldenApple.vy);
+}
+
+
+        // collision grille
+        goldenApple.x = Math.round(goldenApple.drawX / box) * box;
+        goldenApple.y = Math.round(goldenApple.drawY / box) * box;
+    }
+
+    // ===== LOGIQUE SNAKE =====
+    if (!paused && !gameOver) {
+        acc += delta;
+        while (acc >= delay) {
+            update();
+            acc -= delay;
+        }
+    }
+
+    draw((paused || gameOver) ? 0 : acc / delay);
+    requestAnimationFrame(loop);
+}
+
+
+/* ===== UI ===== */
+function togglePause(){
+    if(gameOver) return;
+    paused = !paused;
+    objectiveCompleted = false;
+goldenCollected = false;
+
+objectiveCompleted = false;
+goldenCollected = false;
+applesEaten = 0;
+levelStartTime = performance.now();
+
+    hideAll();
+    if(paused){
+        updateLeaderboard();
+        pauseMenu.style.display="flex";
+    }
+}
+function hideAll(){ document.querySelectorAll(".overlay").forEach(o=>o.style.display="none"); }
+function openSettings(){ hideAll(); settingsMenu.style.display="flex"; }
+function openColors(){ hideAll(); colorsMenu.style.display="flex"; }
+function backToPause(){
+    controlsMode=document.getElementById("controls").value;
+    snakeColor=document.getElementById("snakeColor").value;
+    hideAll();
+    updateLeaderboard();
+    pauseMenu.style.display="flex";
+}
+function goToName(){ step1.style.display="none"; step2.style.display="block"; }
+function startGame(){
+    username=usernameInput.value.trim()||"Joueur";
+    hideAll();
+    startMenu.style.display="none";
+    init();
+    requestAnimationFrame(loop);
+}
+function goToStartMenu(){
+    hideAll();
+    startMenu.style.display="flex";
+    step1.style.display="block";
+    step2.style.display="none";
+    snake=[]; obstacles=[]; foods=[]; goldenApple=null;
+    score=0; level=1; paused=false; gameOver=false;
+    modeIA=false; snakeIA=[]; prevSnakeIA=[]; foodIA=null;
+    canvas.width=terrainWidth; canvas.height=terrainHeight;
+}
+
+/* ===== LEADERBOARD ===== */
+function saveScore(name, score){
+    let lb = JSON.parse(localStorage.getItem("snakeLeaderboard")||"[]");
+    const existing = lb.find(e=>e.name===name);
+    if(existing){
+        if(score>existing.score) existing.score=score;
+    } else lb.push({name,score});
+    lb.sort((a,b)=>b.score-a.score);
+    lb = lb.slice(0,10);
+    localStorage.setItem("snakeLeaderboard", JSON.stringify(lb));
+}
+
+function updateLeaderboard(){
+    const lbDiv = document.getElementById("leaderboard");
+    const lb = JSON.parse(localStorage.getItem("snakeLeaderboard")||"[]");
+    lbDiv.innerHTML = "<h4>Classement :</h4>";
+    lb.forEach((e,i)=>{
+        lbDiv.innerHTML += `${i+1}. ${e.name} : ${e.score}<br>`;
+    });
+}
+
+/* ===== START ===== */
+requestAnimationFrame(loop);
+</script>
+<!-- NOTIFICATION OBJECTIF -->
+<div id="objectivePopup"></div>
+</body>
+</html>
