@@ -591,7 +591,7 @@ document.getElementById("objectiveText").textContent =
     // accélération progressive
     delay = Math.max(
         MIN_DELAY,
-        delay * 1.00
+        delay * 0.85
     );
 
     applesEaten = 0;
@@ -1043,3 +1043,4 @@ requestAnimationFrame(loop);
 <div id="objectivePopup"></div>
 </body>
 </html>
+
